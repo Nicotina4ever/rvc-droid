@@ -1,0 +1,40 @@
+# Build e ambienti locali
+.gradle/
+app/.cxx/
+.cxx/
+.externalNativeBuild/
+build/
+app/build/
+local.properties
+keystore.properties
+app/keystore.properties
+app/release.jks
+*.jks
+*.keystore
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# APK e artefatti: usare le GitHub Releases, non il repository
+*.apk
+app-release.snapshot.apk
+captures/
+*.hprof
+
+# Modelli e dataset: troppo grandi per git, si importano sul telefono o da Dropbox
+Necessari/
+Dataset_spot/
+da_eliminare/
+
+# Log e temporanei
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Documentazione interna di sviluppo
+AGENTS.md
+

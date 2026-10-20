@@ -1,0 +1,184 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.rvc.droid'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.rvc.droid'
+        minSdk 26
+        targetSdk 35
+        versionCode 2
+        versionName '2.0'
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
+        }
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_shared', '-DANDROID_PLATFORM=android-26'
+            }
+        }
+    }
+
+    // Firma release opzionale: in locale usa app/release.jks (gitignored),
+    // su CI/cloni puliti il build release resta unsigned e assembleDebug funziona.
+    def keystorePropsFile = rootProject.file('keystore.properties')
+    def keystoreProps = new Properties()
+    if (keystorePropsFile.exists()) {
+        keystoreProps.load(new FileInputStream(keystorePropsFile))
+    }
+    def releaseKeystore = file('release.jks')
+    def hasReleaseKeystore = releaseKeystore.exists()
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                storeFile releaseKeystore
+                storePassword keystoreProps.getProperty('storePassword', 'rvcandroid2026')
+                keyAlias keystoreProps.getProperty('keyAlias', 'rvc_key')
+                keyPassword keystoreProps.getProperty('keyPassword', 'rvcandroid2026')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+        release {
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    buildFeatures {
+        compose true
+        prefab true
+    }
+
+    // Disabilito lintVitalAnalyzeRelease: su questa macchina Windows
+    // Defender tiene aperti i jar generati e il check fallisce con
+    // FileSystemException. Il check è solo qualità, non funzionale.
+    // (Rieseguibile localmente con :app:lintReleaseDebug se serve.)
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.8'
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/cpp/libs']
+        }
+    }
+
+    packagingOptions {
+        pickFirsts += ['**/libonnxruntime.so', '**/librvc_native.so']
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+        }
+    }
+}
+
+// Copy the signed release APK to a path outside build/ (app-release.snapshot.apk)
+// so the file is still accessible when Windows Search / antivirus holds the
+// original handle inside app/build/outputs/.
+//
+// Both `packageRelease.doLast` (happy path) and a standalone `copyRelease`
+// task (manual fallback) are provided.
+afterEvaluate {
+    def releaseTask = tasks.findByName('packageRelease')
+    if (releaseTask != null) {
+        releaseTask.doLast {
+            def apkDir = file("$buildDir/outputs/apk/release")
+            if (apkDir.exists()) {
+                apkDir.eachFileMatch(~/.*\.apk/) { apk ->
+                    def dest = new File(rootDir, 'app-release.snapshot.apk')
+                    try {
+                        dest.bytes = apk.bytes
+                        logger.lifecycle("Copied release APK -> ${dest.absolutePath} (${dest.length()} bytes)")
+                    } catch (Exception ignored) {
+                        logger.warn("Failed to copy ${apk.name} to snapshot: ${ignored.message}")
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Standalone task: copies whatever APK is sitting in app/build/outputs/apk/release
+// to app-release.snapshot.apk at the project root. Run with:
+//   ./gradlew :app:copyRelease
+tasks.register('copyRelease') {
+    dependsOn 'assembleRelease'
+    description = 'Copies the signed release APK to a stable snapshot path.'
+    group = 'build'
+    doLast {
+        def apkDir = file("$buildDir/outputs/apk/release")
+        if (!apkDir.exists()) {
+            throw new GradleException("No release APK found at ${apkDir}. Run :app:assembleRelease first.")
+        }
+        def copied = false
+        apkDir.eachFileMatch(~/.*\.apk/) { apk ->
+            def dest = new File(rootDir, 'app-release.snapshot.apk')
+            dest.bytes = apk.bytes
+            logger.lifecycle("Snapshot -> ${dest.absolutePath} (${dest.length()} bytes)")
+            copied = true
+        }
+        if (!copied) throw new GradleException("No .apk inside ${apkDir}")
+    }
+}
+
+dependencies {
+    // View system Material (needed for Theme.Material3.DayNight.NoActionBar)
+    implementation 'com.google.android.material:material:1.11.0'
+    // Compose BOM
+    def composeBom = platform('androidx.compose:compose-bom:2024.02.00')
+    implementation composeBom
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'androidx.compose.material:material-icons-extended'
+    implementation 'androidx.compose.animation:animation'
+    implementation 'androidx.activity:activity-compose:1.8.2'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    // The native libonnxruntime.so shipped under app/src/main/cpp/libs is the 1.17.1 build.
+    // The header tree there is API version 17, which matches that .so. Declaring a newer
+    // AAR (1.19.x) would force-pack a second .so with a different ABI surface; we keep
+    // the dependency purely native-side instead. Java/Kotlin code does not need ORT.
+
+    // Media3 (ExoPlayer) for video preview
+    implementation 'androidx.media3:media3-exoplayer:1.2.1'
+    implementation 'androidx.media3:media3-ui:1.2.1'
+
+    // DocumentFile per scansionare tree URI SAF
+    implementation 'androidx.documentfile:documentfile:1.0.1'
+
+    // Testing
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.11.1'
+}

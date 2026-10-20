@@ -1,0 +1,11 @@
+# Normalizzazione line endings
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.jks binary
+*.so binary
+*.onnx binary
