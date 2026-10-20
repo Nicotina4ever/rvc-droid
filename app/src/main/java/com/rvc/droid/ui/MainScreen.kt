@@ -38,6 +38,7 @@ import com.rvc.droid.ui.project.ProjectManager
 import com.rvc.droid.ui.project.ProjectState
 import com.rvc.droid.ui.project.RecordingClip
 import com.rvc.droid.ui.studio.StudioView
+import com.rvc.droid.ui.video.VideoPreviewView
 import com.rvc.droid.ui.video.VideoWorkspace
 import com.rvc.droid.ui.prompter.PrompterScreen
 import com.rvc.droid.ui.cloud.ProjectSyncView
@@ -132,6 +133,7 @@ fun MainScreen(hasPermission: Boolean = true) {
     var mixerTracks by remember { mutableStateOf<List<com.rvc.droid.ui.project.MixerTrackState>>(emptyList()) }
 
     var isRunning by remember { mutableStateOf(false) }
+    var recordingStartedAudio by remember { mutableStateOf(false) }
     var isRvcEnabled by remember { mutableStateOf(false) }
     var synthModel by remember { mutableStateOf("") }
     var vecModel by remember { mutableStateOf("") }
@@ -898,7 +900,7 @@ fun MainScreen(hasPermission: Boolean = true) {
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(hasPermission) {
         try { WavEditor.init(ctx.cacheDir) } catch (_: Exception) {}
         try {
             if (!hasPermission) {
@@ -1255,11 +1257,19 @@ fun MainScreen(hasPermission: Boolean = true) {
     val onToggleRecording: () -> Unit = {
         scope.launch {
             try {
+                if (!hasPermission) {
+                    showStatus("Permesso microfono negato: abilitalo nelle impostazioni Android", true)
+                    return@launch
+                }
                 if (!bridge.isInitialized) bridge.initialize()
                 if (isRunning) {
                     bridge.stopRecording()
-                    bridge.stopAudio()
-                    if (!bridge.startMonitoring()) showStatus("Failed to switch back to monitoring", true)
+                    delay(120)
+                    if (recordingStartedAudio) {
+                        bridge.stopAudio()
+                        if (!bridge.startMonitoring()) showStatus("Failed to switch back to monitoring", true)
+                        recordingStartedAudio = false
+                    }
                     videoIsPlaying = false
                     val dir = ctx.getExternalFilesDir(null) ?: ctx.filesDir
                     recordings = dir.listFiles { f -> f.extension == "wav" }?.map {
@@ -1270,25 +1280,44 @@ fun MainScreen(hasPermission: Boolean = true) {
                     val dir = ctx.getExternalFilesDir(null) ?: ctx.filesDir
                     val recPath = File(dir, "rec_${System.currentTimeMillis()}.wav").absolutePath
 
-                    // Sync video e backing track
+                    // Sync backing track
                     if (backingLoaded) {
                         bridge.setBackingTrackPosition((backingPosition * 48000 * 60).toLong())
+                    }
+
+                    // Se il monitor e' gia' attivo, registra dallo stesso flusso audio:
+                    // fermarlo e riaprirlo causava file muti su alcuni telefoni.
+                    val monitoringWasRunning = bridge.isMonitoring()
+                    recordingStartedAudio = false
+                    if (!monitoringWasRunning) {
+                        bridge.stopAudio()
+                        delay(150)
+                        // Voce PULITA: la conversione RVC avviene sul PC.
+                        val started = bridge.startAudio(false)
+                        if (!started) {
+                            showStatus("Failed to start audio engine", true)
+                            if (!bridge.startMonitoring()) showStatus("Also failed to restart monitoring", true)
+                            return@launch
+                        }
+                        recordingStartedAudio = true
+                        delay(250) // lascia aprire lo stream del microfono
+                    }
+
+                    val recStarted = bridge.startRecording(recPath, "16", false, false)
+                    if (!recStarted) {
+                        showStatus("Registrazione non avviata: controlla il microfono", true)
+                        if (recordingStartedAudio) {
+                            bridge.stopAudio()
+                            bridge.startMonitoring()
+                            recordingStartedAudio = false
+                        }
+                        return@launch
                     }
                     if (videoPath != null) {
                         videoPositionMs = (backingPosition * 60 * 1000).toLong()
                         videoIsPlaying = true
                     }
-
-                    bridge.stopAudio() // ferma il monitoring prima di registrare
-                    val started = bridge.startAudio(isRvcEnabled)
-                    if (started) {
-                        bridge.startRecording(recPath, "16", isRvcEnabled, true)
-                        showStatus("Recording started")
-                    } else {
-                        showStatus("Failed to start audio engine", true)
-                        if (!bridge.startMonitoring()) showStatus("Also failed to restart monitoring", true)
-                        return@launch
-                    }
+                    showStatus("Recording started")
                 }
                 isRunning = !isRunning
             } catch (e: Exception) {
@@ -1549,7 +1578,24 @@ fun MainScreen(hasPermission: Boolean = true) {
 
                 Box(Modifier.weight(1f)) {
                     when (currentTab) {
-                        DAWTab.STUDIO -> StudioView(
+                        DAWTab.STUDIO -> Column(Modifier.fillMaxSize()) {
+                            // Video di riferimento nella stessa schermata di registrazione:
+                            // si guarda il video e si doppia senza cambiare tab.
+                            VideoPreviewView(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(if (videoPath != null) 360.dp else 230.dp),
+                                videoPath = videoPath,
+                                currentPositionMs = videoPositionMs,
+                                isPlaying = videoIsPlaying,
+                                onLoadVideo = { videoPicker.launch(arrayOf("video/*")) },
+                                onPlayPause = { videoIsPlaying = !videoIsPlaying },
+                                onStop = { videoIsPlaying = false; videoPositionMs = 0L },
+                                onSeekTo = { videoPositionMs = it },
+                                onPositionChanged = { videoPositionMs = it },
+                            )
+                            StudioView(
+                                modifier = Modifier.weight(1f),
                                 isRunning = isRunning,
                                 inputLevel = inputLevel,
                                 recordings = recordings,
@@ -1587,7 +1633,8 @@ fun MainScreen(hasPermission: Boolean = true) {
                                 onToggleTeleprompter = { showTeleprompter = !showTeleprompter },
                                 waveformPeaks = waveformPeaks,
                                 waveformProgress = waveformProgress
-                        )
+                            )
+                        }
 
                         DAWTab.EDITOR -> EditorView(
                             selectedClip = selectedClip,
