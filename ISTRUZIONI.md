@@ -1,10 +1,10 @@
 # Istruzioni — RVC-Droid
 
-Repo: <https://github.com/Nicotina4ever/rvc-droid> · APK: [release v2.1](https://github.com/Nicotina4ever/rvc-droid/releases/tag/v2.1)
+Repo: <https://github.com/Nicotina4ever/rvc-droid> · APK: [release v2.2](https://github.com/Nicotina4ever/rvc-droid/releases/tag/v2.1)
 
 ## Installare
 
-Scarica `RVC-Droid-2.1.apk` dalla release e installalo. Non servono modelli sul telefono: la
+Scarica `RVC-Droid-2.2.apk` dalla release e installalo. Non servono modelli sul telefono: la
 conversione RVC avviene sul PC con i `.pth` originali. Sul PC tieni RVC Portable con il preset
 Dropbox attivo (`AudioIn`, `AudioOut`, `config.json`, `modelli.txt`, `status.json`).
 

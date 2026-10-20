@@ -41,7 +41,7 @@ data class RemotePcStatus(
         return ((nowMs / 1000L) - timestamp).coerceAtLeast(0L)
     }
 
-    fun isOnline(nowMs: Long = System.currentTimeMillis()): Boolean = ageSeconds(nowMs) <= 60L
+    fun isOnline(nowMs: Long = System.currentTimeMillis()): Boolean = ageSeconds(nowMs) <= 600L
 }
 
 object PcStatusParser {
