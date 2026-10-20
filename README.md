@@ -8,7 +8,7 @@ dall'app anche da lontano.
 ## Repository
 
 - Sorgenti: <https://github.com/Nicotina4ever/rvc-droid>
-- APK firmato: allegato alle **Releases** GitHub (`app-release.snapshot.apk`), non versionato.
+- APK firmato: [RVC-Droid-2.0.apk](https://github.com/Nicotina4ever/rvc-droid/releases/download/v2.0/RVC-Droid-2.0.apk) (Releases v2.0), non versionato.
 - **Non versionati**: `Necessari/` (modelli ONNX ~1,3 GB), `Dataset_spot/`, build, APK e keystore.
   I modelli si importano sul telefono (SAF / Download) o si scelgono dalla cartella Dropbox.
 - Firma release: in locale usa `app/release.jks` + eventuale `keystore.properties` (entrambi
