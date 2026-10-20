@@ -30,15 +30,32 @@ per non rischiare regressioni, ma non è raggiungibile dall'interfaccia.
 
 ## Aggiornare il repository
 
+Il modo semplice è un solo comando (o doppio click su `PUBBLICA.bat`):
+
 ```bat
-git status
+PUBBLICA.bat
+```
+
+Con un messaggio tuo:
+
+```bat
+PUBBLICA.bat -Message "Descrizione modifica"
+```
+
+Lo script fa `git add -A`, commit (solo se ci sono modifiche) e push in un'unica richiesta; usa il
+token già salvato, quindi non dovrebbe chiedere permessi ogni volta. Per vedere cosa farebbe senza
+pubblicare: `PUBBLICA.bat -DryRun`.
+
+La prima push autentica GitHub nel browser; se chiede permessi ripetuti, chiudi le finestre di
+login e fai un solo comando alla volta (oppure usa GitHub Desktop).
+
+Sotto il cofano:
+
+```bat
 git add -A
 git commit -m "Descrizione modifica"
 git push
 ```
-
-La prima push autentica GitHub nel browser; se chiede permessi ripetuti, chiudi le finestre di
-login e fai un solo comando alla volta (oppure usa GitHub Desktop).
 
 Non committare: `build/`, `.gradle/`, `local.properties`, `*.apk`, `app/release.jks`,
 `Necessari/`, `Dataset_spot/`, `keystore.properties`, token o password.
