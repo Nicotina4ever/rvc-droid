@@ -8,9 +8,8 @@ dall'app anche da lontano.
 ## Repository
 
 - Sorgenti: <https://github.com/Nicotina4ever/rvc-droid>
-- APK firmato: [RVC-Droid-2.0.apk](https://github.com/Nicotina4ever/rvc-droid/releases/download/v2.0/RVC-Droid-2.0.apk) (Releases v2.0), non versionato.
-- **Non versionati**: `Necessari/` (modelli ONNX ~1,3 GB), `Dataset_spot/`, build, APK e keystore.
-  I modelli si importano sul telefono (SAF / Download) o si scelgono dalla cartella Dropbox.
+- APK firmato: [RVC-Droid-2.1.apk](https://github.com/Nicotina4ever/rvc-droid/releases/download/v2.1/RVC-Droid-2.1.apk) (Releases v2.1), non versionato.
+- **Non versionati**: `Necessari/` (archivio modelli ONNX sperimentali ~1,3 GB), `Dataset_spot/`, build, APK e keystore. I modelli `.pth` restano sul PC: l'app non richiede modelli ONNX.
 - Firma release: in locale usa `app/release.jks` + eventuale `keystore.properties` (entrambi
   gitignored); su un clone pulito `assembleRelease` produce un APK non firmato e `assembleDebug`
   funziona normalmente.
@@ -26,11 +25,11 @@ dall'app anche da lontano.
 | **Gobbo** | teleprompter full-screen con scroll automatico, specchio, libreria script locale |
 | **Plugin rack** | catena master inseribile: gate → EQ voce/musica → compressore → limiter → riverbero → master, bypass per modulo, preset di fabbrica e preset utente salvabili |
 | **Cloud** | RVC remoto via Dropbox, bundle progetto `.rvcdaw.zip`, controllo remoto PC (`status.json` + `config.json`) |
-| **RVC locale** | conversione ONNX sul dispositivo per file singoli (modello + HuBERT + RMVPE + indice) |
+| **RVC remoto** | conversione sul PC con i `.pth` originali (PyTorch/CUDA): **nessuna conversione ONNX**, nessun modello da copiare sul telefono |
 
 ## Build
 
-Requisiti: JDK 17 (pinned in `gradle.properties`), Android SDK/NDK in `local.properties`.
+Requisiti: JDK 17 (`JAVA_HOME`), Android SDK/NDK in `local.properties` (es. `sdk.dir=F:\\Android\\SDK`).
 
 ```bat
 gradlew.bat assembleDebug
@@ -71,6 +70,4 @@ app/src/main/java/com/rvc/droid/
 └─ cpp/                # motore RVC ONNX + TrackMixer nativo
 ```
 
-I modelli (`.onnx`, `.fbin`, `.pth`) **non sono versionati**: si importano dal telefono o si
-scelgono dalla cartella Dropbox/Download. Vedi `AGENTS.md` per i vincoli del motore e la cronologia
-delle build.
+I modelli (`*.pth`) **non sono versionati**: restano sul PC e vengono usati direttamente da RVC Portable. L'app non richiede `.onnx`; `Necessari/` è solo un archivio storico della pipeline ONNX locale (disattivata). Vedi `AGENTS.md` per i vincoli del motore e la cronologia delle build.

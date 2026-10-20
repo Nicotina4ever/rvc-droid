@@ -100,6 +100,8 @@ fun RvcView(
     var showModelDropdown by remember { mutableStateOf(false) }
     var logText by remember { mutableStateOf("") }
     var diagText by remember { mutableStateOf("") }
+    val localOnnxEnabled = RvcFeatures.LOCAL_ONNX_ENABLED
+    val remoteMode = !localOnnxEnabled || isRemoteMode
 
     fun readLogTail(): String {
         return try {
@@ -208,6 +210,7 @@ fun RvcView(
         Spacer(Modifier.height(10.dp))
 
         // Modalità Selector: Remoto (Dropbox) vs Locale (Onnx)
+        if (localOnnxEnabled) {
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = RVCColors.bgSurface)) {
             Row(
                 Modifier.fillMaxWidth().padding(4.dp),
@@ -240,10 +243,19 @@ fun RvcView(
                 }
             }
         }
+        } else {
+            Text(
+                "RVC REMOTO VIA PC · i modelli .pth restano sul PC, nessuna conversione ONNX",
+                color = RVCColors.accentStrong,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(vertical = 6.dp)
+            )
+        }
 
         Spacer(Modifier.height(10.dp))
 
-        if (isRemoteMode) {
+        if (remoteMode) {
             // === CARD DROPBOX REMOTO ===
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = RVCColors.bgSurface)) {
                 Column(Modifier.padding(12.dp)) {
@@ -491,7 +503,7 @@ fun RvcView(
                     }
                 }
             }
-        } else {
+        } else if (localOnnxEnabled) {
             // === CARD LOCALE ONNX ===
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = RVCColors.bgSurface)) {
                 Column(Modifier.padding(12.dp)) {
@@ -653,7 +665,7 @@ fun RvcView(
 
                 Spacer(Modifier.height(8.dp))
 
-                if (isRemoteMode) {
+                if (remoteMode) {
                     if (remoteProgressText.isNotBlank()) {
                         Text(remoteProgressText, color = RVCColors.accentCyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                         Spacer(Modifier.height(4.dp))
@@ -678,7 +690,7 @@ fun RvcView(
                             fontSize = 11.sp
                         )
                     }
-                } else {
+                } else if (localOnnxEnabled) {
                     if (rvcProgress in 0f..0.99f) {
                         LinearProgressIndicator(progress = { rvcProgress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth(), color = RVCColors.accentCyan)
                         Spacer(Modifier.height(8.dp))
