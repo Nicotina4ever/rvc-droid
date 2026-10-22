@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.rvc.droid.audio.NativeAudioBridge
 import com.rvc.droid.audio.WavEditor
 import com.rvc.droid.ui.components.*
@@ -37,7 +39,9 @@ import com.rvc.droid.ui.rvc.ModelArtifactDiscovery
 import com.rvc.droid.ui.project.ProjectManager
 import com.rvc.droid.ui.project.ProjectState
 import com.rvc.droid.ui.project.RecordingClip
-import com.rvc.droid.ui.studio.StudioView
+import com.rvc.droid.ui.project.MixerTrackState
+import com.rvc.droid.ui.studio.StudioWorkspace
+import com.rvc.droid.ui.plugins.PluginRackView
 import com.rvc.droid.ui.video.VideoPreviewView
 import com.rvc.droid.ui.video.VideoWorkspace
 import com.rvc.droid.ui.prompter.PrompterScreen
@@ -131,6 +135,9 @@ fun MainScreen(hasPermission: Boolean = true) {
     var lastRvcOutputClip by remember { mutableStateOf<RecordingClip?>(null) }
     var recordings by remember { mutableStateOf<List<RecordingClip>>(emptyList()) }
     var mixerTracks by remember { mutableStateOf<List<com.rvc.droid.ui.project.MixerTrackState>>(emptyList()) }
+    var armedTrackIndex by remember { mutableStateOf<Int?>(null) }
+    var showStudioVideo by remember { mutableStateOf(false) }
+    var showStudioPluginRack by remember { mutableStateOf(false) }
 
     var isRunning by remember { mutableStateOf(false) }
     var recordingStartedAudio by remember { mutableStateOf(false) }
@@ -927,13 +934,24 @@ fun MainScreen(hasPermission: Boolean = true) {
             }
             val monOk = bridge.startMonitoring()
             com.rvc.droid.RVCCoreApplication.logToFile("Init: startMonitoring=$monOk isMonitoring=${bridge.isMonitoring()}")
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { tryAutoLoadRvcArtifacts() }
-            reportAutoloadStatus()
-            // Dopo l'autoload, se il monitoraggio si e' fermato per qualche
-            // side-effect del caricamento modelli, riavvialo. Molti engine
-            // audio Android si fermano quando cambia lo stato del client.
+            // Niente autoload dei modelli all'avvio: la conversione e' remota.
+            // Crea solo la prima traccia armabile se il progetto e' vuoto.
+            if (mixerTracks.isEmpty()) {
+                val firstIndex = bridge.addTrack("Voce 1")
+                if (firstIndex >= 0) {
+                    mixerTracks = listOf(
+                        MixerTrackState(
+                            trackIndex = firstIndex,
+                            clipPath = "",
+                            clipName = "Voce 1",
+                            durationMs = 0L,
+                        )
+                    )
+                    armedTrackIndex = firstIndex
+                }
+            }
             val monAfter = if (!bridge.isMonitoring()) {
-                com.rvc.droid.RVCCoreApplication.logToFile("Init: monitoring stopped after autoload, restarting")
+                com.rvc.droid.RVCCoreApplication.logToFile("Init: monitoring stopped, restarting")
                 bridge.startMonitoring()
             } else true
             if (!monOk || !monAfter) showStatus("Monitoring failed to start", true)
@@ -1254,6 +1272,57 @@ fun MainScreen(hasPermission: Boolean = true) {
     }
 
     // ------------------------------------------------------------- DAW actions
+    fun createStudioTrack(name: String = "Voce"): Int {
+        if (!bridge.isInitialized) bridge.initialize()
+        val index = bridge.addTrack(name)
+        if (index < 0) {
+            showStatus("Impossibile creare la traccia (limite 32?)", true)
+            return -1
+        }
+        mixerTracks = mixerTracks + MixerTrackState(
+            trackIndex = index,
+            clipPath = "",
+            clipName = name,
+            durationMs = 0L,
+        )
+        bridge.setTrackVolume(index, 0.85f)
+        armedTrackIndex = index
+        return index
+    }
+
+    fun addStudioTrack() {
+        createStudioTrack("Voce ${mixerTracks.size + 1}")
+    }
+
+    fun removeStudioTrack(index: Int) {
+        if (mixerTracks.none { it.trackIndex == index }) return
+        bridge.removeTrack(index)
+        mixerTracks = mixerTracks
+            .filter { it.trackIndex != index }
+            .map { if (it.trackIndex > index) it.copy(trackIndex = it.trackIndex - 1) else it }
+        if (armedTrackIndex == index) {
+            armedTrackIndex = mixerTracks.firstOrNull()?.trackIndex
+        } else if (armedTrackIndex != null && armedTrackIndex!! > index) {
+            armedTrackIndex = armedTrackIndex!! - 1
+        }
+        if (selectedTrackIdx > index) selectedTrackIdx -= 1
+        selectedTimelineClipId = selectedTimelineClipId?.takeIf { id -> mixerTracks.any { it.clipId == id } }
+    }
+
+    fun importRecordingIntoTrack(file: File, track: MixerTrackState): Boolean {
+        val name = track.clipName.ifBlank { "Voce ${track.trackIndex + 1}" }
+        val ok = bridge.importTrackAt(track.trackIndex, file.absolutePath, name)
+        if (!ok) return false
+        val duration = getDurationMs(file)
+        mixerTracks = mixerTracks.map {
+            if (it.trackIndex == track.trackIndex) {
+                it.copy(clipPath = file.absolutePath, clipName = name, durationMs = duration, offsetMs = 0L)
+            } else it
+        }
+        bridge.setTrackOffset(track.trackIndex, 0L)
+        return true
+    }
+
     val onToggleRecording: () -> Unit = {
         scope.launch {
             try {
@@ -1272,6 +1341,16 @@ fun MainScreen(hasPermission: Boolean = true) {
                     }
                     videoIsPlaying = false
                     val dir = ctx.getExternalFilesDir(null) ?: ctx.filesDir
+                    val newest = dir.listFiles { f -> f.extension == "wav" }?.maxByOrNull { it.lastModified() }
+                    val target = mixerTracks.firstOrNull { it.trackIndex == armedTrackIndex }
+                    if (newest != null && target != null) {
+                        if (importRecordingIntoTrack(newest, target)) {
+                            selectedTimelineClipId = target.clipId
+                            selectedTrackIdx = target.trackIndex
+                        } else {
+                            showStatus("WAV salvato ma non caricato nella traccia armata", true)
+                        }
+                    }
                     recordings = dir.listFiles { f -> f.extension == "wav" }?.map {
                         RecordingClip(name = it.name, path = it.absolutePath, durationMs = getDurationMs(it))
                     } ?: emptyList()
@@ -1279,6 +1358,12 @@ fun MainScreen(hasPermission: Boolean = true) {
                 } else {
                     val dir = ctx.getExternalFilesDir(null) ?: ctx.filesDir
                     val recPath = File(dir, "rec_${System.currentTimeMillis()}.wav").absolutePath
+
+                    // Assicura una traccia armata: la registrazione finisce li'.
+                    if (armedTrackIndex == null || mixerTracks.none { it.trackIndex == armedTrackIndex }) {
+                        if (mixerTracks.isEmpty()) createStudioTrack("Voce 1")
+                        else armedTrackIndex = mixerTracks.first().trackIndex
+                    }
 
                     // Sync backing track
                     if (backingLoaded) {
@@ -1535,6 +1620,76 @@ fun MainScreen(hasPermission: Boolean = true) {
         }
     }
 
+    if (showStudioPluginRack) {
+        Dialog(
+            onDismissRequest = { showStudioPluginRack = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(modifier = Modifier.fillMaxSize(), color = RVCColors.bg) {
+                PluginRackView(
+                    onClose = { showStudioPluginRack = false },
+                    gateState = gateState,
+                    gateGR = gateGR,
+                    voiceBands = voiceBands,
+                    musicBands = musicBands,
+                    compThreshold = compThreshold,
+                    compRatio = compRatio,
+                    compAttack = compAttack,
+                    compRelease = compRelease,
+                    compMakeup = compMakeup,
+                    compGR = compGR,
+                    limiterThreshold = limiterThreshold,
+                    limiterRelease = limiterRelease,
+                    limiterGR = limiterGR,
+                    reverbMix = reverbMix,
+                    reverbRoomSize = reverbRoomSize,
+                    reverbDamping = reverbDamping,
+                    voiceVolume = voiceVol,
+                    musicVolume = musicVol,
+                    masterVolume = masterVol,
+                    monitoringGain = monitoringGain,
+                    momentary = momentary,
+                    shortTerm = shortTerm,
+                    integrated = integrated,
+                    truePeak = truePeak,
+                    onGateToggle = {
+                        val s = gateState.copy(enabled = !gateState.enabled)
+                        gateState = s
+                        bridge.setNoiseGate(s.enabled, s.threshold, s.attackMs, s.holdMs, s.releaseMs)
+                    },
+                    onGateThreshold = {
+                        val s = gateState.copy(threshold = it)
+                        gateState = s
+                        bridge.setNoiseGate(s.enabled, s.threshold, s.attackMs, s.holdMs, s.releaseMs)
+                    },
+                    onVoiceBandUpdate = { i, band ->
+                        voiceBands = voiceBands.toMutableList().also { it[i] = band }
+                        bridge.setVoiceEQ(voiceBands.map { NativeAudioBridge.EQBand(it.freq, it.gainDB, it.q) })
+                    },
+                    onMusicBandUpdate = { i, band ->
+                        musicBands = musicBands.toMutableList().also { it[i] = band }
+                        bridge.setMusicEQ(musicBands.map { NativeAudioBridge.EQBand(it.freq, it.gainDB, it.q) })
+                    },
+                    onCompThreshold = { compThreshold = it; bridge.setSideChain(it, compRatio, compAttack, compRelease, compMakeup) },
+                    onCompRatio = { compRatio = it; bridge.setSideChain(compThreshold, it, compAttack, compRelease, compMakeup) },
+                    onCompAttack = { compAttack = it; bridge.setSideChain(compThreshold, compRatio, it, compRelease, compMakeup) },
+                    onCompRelease = { compRelease = it; bridge.setSideChain(compThreshold, compRatio, compAttack, it, compMakeup) },
+                    onCompMakeup = { compMakeup = it; bridge.setSideChain(compThreshold, compRatio, compAttack, compRelease, it) },
+                    onLimiterThreshold = { limiterThreshold = it; bridge.setLimiter(it, limiterRelease) },
+                    onLimiterRelease = { limiterRelease = it; bridge.setLimiter(limiterThreshold, it) },
+                    onReverbMix = { reverbMix = it; bridge.setReverbMix(it) },
+                    onReverbRoomSize = { reverbRoomSize = it; bridge.setReverbRoomSize(it) },
+                    onReverbDamping = { reverbDamping = it; bridge.setReverbDamping(it) },
+                    onVoiceVolume = { voiceVol = it; bridge.setVolumes(it, musicVol, masterVol) },
+                    onMusicVolume = { musicVol = it; bridge.setVolumes(voiceVol, it, masterVol) },
+                    onMasterVolume = { masterVol = it; bridge.setVolumes(voiceVol, musicVol, it) },
+                    onMonitoringGain = { monitoringGain = it; bridge.setMonitoringGain(it) },
+                    onResetMastering = { if (bridge.isInitialized) bridge.masteringReset() },
+                )
+            }
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
@@ -1578,63 +1733,110 @@ fun MainScreen(hasPermission: Boolean = true) {
 
                 Box(Modifier.weight(1f)) {
                     when (currentTab) {
-                        DAWTab.STUDIO -> Column(Modifier.fillMaxSize()) {
-                            // Video di riferimento nella stessa schermata di registrazione:
-                            // si guarda il video e si doppia senza cambiare tab.
-                            VideoPreviewView(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(if (videoPath != null) 360.dp else 230.dp),
-                                videoPath = videoPath,
-                                currentPositionMs = videoPositionMs,
-                                isPlaying = videoIsPlaying,
-                                onLoadVideo = { videoPicker.launch(arrayOf("video/*")) },
-                                onPlayPause = { videoIsPlaying = !videoIsPlaying },
-                                onStop = { videoIsPlaying = false; videoPositionMs = 0L },
-                                onSeekTo = { videoPositionMs = it },
-                                onPositionChanged = { videoPositionMs = it },
-                            )
-                            StudioView(
-                                modifier = Modifier.weight(1f),
-                                isRunning = isRunning,
-                                inputLevel = inputLevel,
-                                recordings = recordings,
-                                backingLoaded = backingLoaded,
-                                backingGain = backingGain,
-                                backingPosition = backingPosition,
-                                onStartStop = onToggleRecording,
-                                onLoadBacking = { backingPicker.launch(arrayOf("*/*")) },
-                                onBackingGain = { backingGain = it; bridge.setBackingTrackGain(it) },
-                                onBackingSeek = { 
-                                    backingPosition = it
-                                    if (videoPath != null) videoPositionMs = (it * 60 * 1000).toLong()
-                                },
-                                onSelectClip = { selectedClip = it; currentTab = DAWTab.EDITOR },
-                                onDeleteClip = { clip ->
-                                    File(clip.path).delete()
-                                    recordings = recordings.filter { it.id != clip.id }
-                                },
-                                onExportClip = { clip ->
-                                    selectedClip = clip
-                                    showExportDialog = true
-                                },
-                                onExportRegions = { clip ->
-                                    selectedClip = clip
-                                    showRegionExportDialog = true
-                                },
-                                onExport = { showExportDialog = true },
-                                teleprompterText = teleprompterText,
-                                onTeleprompterTextChange = { teleprompterText = it },
-                                teleprompterFontSize = teleprompterFontSize,
-                                onTeleprompterFontSizeChange = { teleprompterFontSize = it },
-                                teleprompterScrollSpeed = teleprompterScrollSpeed,
-                                onTeleprompterScrollSpeedChange = { teleprompterScrollSpeed = it },
-                                showTeleprompter = showTeleprompter,
-                                onToggleTeleprompter = { showTeleprompter = !showTeleprompter },
-                                waveformPeaks = waveformPeaks,
-                                waveformProgress = waveformProgress
-                            )
-                        }
+                        DAWTab.STUDIO -> StudioWorkspace(
+                            isRunning = isRunning,
+                            inputLevel = inputLevel,
+                            recordings = recordings,
+                            tracks = mixerTracks,
+                            armedTrackIndex = armedTrackIndex,
+                            selectedClipId = selectedTimelineClipId,
+                            timelinePositionMs = timelinePositionMs,
+                            timelineDurationMs = timelineDurationMs,
+                            timelinePlaying = timelinePlaying,
+                            waveformPeaks = waveformPeaks,
+                            waveformProgress = waveformProgress,
+                            videoPath = videoPath,
+                            videoPlaying = videoIsPlaying,
+                            showVideo = showStudioVideo,
+                            onToggleVideo = { showStudioVideo = !showStudioVideo },
+                            onLoadVideo = { videoPicker.launch(arrayOf("video/*")) },
+                            onPlayPauseVideo = { videoIsPlaying = !videoIsPlaying },
+                            onStopVideo = { videoIsPlaying = false; videoPositionMs = 0L },
+                            onVideoPositionChanged = { videoPositionMs = it },
+                            onStartStop = onToggleRecording,
+                            onPlayTimeline = {
+                                bridge.resetMixerPosition()
+                                timelinePositionMs = 0L
+                                timelinePlaying = true
+                                bridge.startAudio(false)
+                            },
+                            onStopTimeline = {
+                                timelinePlaying = false
+                                bridge.stopAudio()
+                                bridge.startMonitoring()
+                            },
+                            onSeekTimeline = { ms ->
+                                timelinePositionMs = ms.coerceAtLeast(0L)
+                                bridge.setMixerPositionMs(timelinePositionMs)
+                            },
+                            onAddTrack = { addStudioTrack() },
+                            onRemoveTrack = { removeStudioTrack(it) },
+                            onArmTrack = { index -> armedTrackIndex = index },
+                            onSelectTrack = { selectedTrackIdx = it },
+                            onSelectClip = { clipId ->
+                                selectedTimelineClipId = clipId
+                                mixerTracks.firstOrNull { it.clipId == clipId }?.let { selectedTrackIdx = it.trackIndex }
+                            },
+                            onTrackVolume = { idx, vol ->
+                                mixerTracks = mixerTracks.map { if (it.trackIndex == idx) it.copy(volume = vol) else it }
+                                bridge.setTrackVolume(idx, vol)
+                            },
+                            onTrackPan = { idx, pan ->
+                                mixerTracks = mixerTracks.map { if (it.trackIndex == idx) it.copy(pan = pan) else it }
+                                bridge.setTrackPan(idx, pan)
+                            },
+                            onTrackMute = { idx, muted ->
+                                mixerTracks = mixerTracks.map { if (it.trackIndex == idx) it.copy(muted = muted) else it }
+                                bridge.setTrackMute(idx, muted)
+                            },
+                            onTrackSolo = { idx, solo ->
+                                mixerTracks = mixerTracks.map { if (it.trackIndex == idx) it.copy(solo = solo) else it }
+                                bridge.setTrackSolo(idx, solo)
+                            },
+                            onTrackOffsetChange = { idx, clipId, offset ->
+                                mixerTracks = mixerTracks.map {
+                                    if (it.clipId == clipId) it.copy(offsetMs = offset.coerceAtLeast(0L)) else it
+                                }
+                                bridge.setTrackOffset(idx, offset.coerceAtLeast(0L) * 48)
+                            },
+                            voiceVolume = voiceVol,
+                            musicVolume = musicVol,
+                            masterVolume = masterVol,
+                            momentary = momentary,
+                            shortTerm = shortTerm,
+                            integrated = integrated,
+                            truePeak = truePeak,
+                            onVoiceVolume = { voiceVol = it; bridge.setVolumes(it, musicVol, masterVol) },
+                            onMusicVolume = { musicVol = it; bridge.setVolumes(voiceVol, it, masterVol) },
+                            onMasterVolume = { masterVol = it; bridge.setVolumes(voiceVol, musicVol, it) },
+                            onOpenPluginRack = { showStudioPluginRack = true },
+                            backingLoaded = backingLoaded,
+                            backingGain = backingGain,
+                            backingPosition = backingPosition,
+                            onLoadBacking = { backingPicker.launch(arrayOf("*/*")) },
+                            onBackingGain = { backingGain = it; bridge.setBackingTrackGain(it) },
+                            onBackingSeek = {
+                                backingPosition = it
+                                if (videoPath != null) videoPositionMs = (it * 60 * 1000).toLong()
+                            },
+                            gobboText = teleprompterText,
+                            onGobboTextChange = { teleprompterText = it },
+                            gobboFontSize = teleprompterFontSize,
+                            onGobboFontSizeChange = { teleprompterFontSize = it },
+                            gobboSpeed = teleprompterScrollSpeed,
+                            onGobboSpeedChange = { teleprompterScrollSpeed = it },
+                            showGobbo = showTeleprompter,
+                            onToggleGobbo = { showTeleprompter = !showTeleprompter },
+                            onExport = { showExportDialog = true },
+                            onExportClip = { clip ->
+                                exportSourceClip = clip
+                                showExportDialog = true
+                            },
+                            onDeleteClip = { clip ->
+                                File(clip.path).delete()
+                                recordings = recordings.filter { it.id != clip.id }
+                            },
+                        )
 
                         DAWTab.EDITOR -> EditorView(
                             selectedClip = selectedClip,

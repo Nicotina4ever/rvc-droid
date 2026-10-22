@@ -296,7 +296,7 @@ void TrackMixer::clearTrack(int32_t index) {
     mTracks[index]->offset.store(0);
 }
 
-bool TrackMixer::importWav(const char* path, const std::string& name) {
+bool TrackMixer::importWavInternal(const char* path, const std::string& name, int32_t targetIndex) {
     FILE* f = fopen(path, "rb");
     if (!f) {
         LOGE("Cannot open WAV: %s", path);
@@ -391,13 +391,15 @@ bool TrackMixer::importWav(const char* path, const std::string& name) {
                 LOGI("Resampled track %s: %d Hz -> 48000 Hz", path, sr);
             }
 
-            int32_t trackIndex = addTrack(name.empty() ? path : name);
-            if (trackIndex < 0) { fclose(f); return false; }
+            int32_t trackIndex = targetIndex;
+            if (trackIndex < 0) trackIndex = addTrack(name.empty() ? path : name);
+            if (trackIndex < 0 || trackIndex >= getTrackCount()) { fclose(f); return false; }
 
             auto* track = getTrack(trackIndex);
             if (track) {
                 track->data = std::move(samples);
                 track->active.store(true);
+                if (!name.empty()) track->name = name;
             }
 
             LOGI("Imported WAV: %s (%d frames, %dHz, %d-bit, %dch) -> Track %d",
@@ -411,6 +413,14 @@ bool TrackMixer::importWav(const char* path, const std::string& name) {
 
     fclose(f);
     return false;
+}
+
+bool TrackMixer::importWav(const char* path, const std::string& name) {
+    return importWavInternal(path, name, -1);
+}
+
+bool TrackMixer::importWavAt(const char* path, int32_t index, const std::string& name) {
+    return importWavInternal(path, name, index);
 }
 
 int64_t TrackMixer::getTotalDuration() const {

@@ -525,6 +525,16 @@ Java_com_rvc_droid_audio_NativeAudioBridge_nativeImportTrack(JNIEnv* e, jobject,
     if(name && cName) e->ReleaseStringUTFChars(name, cName);
     return ok ? JNI_TRUE : JNI_FALSE;
 }
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_rvc_droid_audio_NativeAudioBridge_nativeImportTrackAt(JNIEnv* e, jobject, jlong, jint index, jstring path, jstring name) {
+    if(!gTM) return JNI_FALSE;
+    const char* cPath = e->GetStringUTFChars(path, nullptr);
+    const char* cName = name ? e->GetStringUTFChars(name, nullptr) : "";
+    bool ok = gTM->importWavAt(cPath, index, cName ? cName : "");
+    if(cPath) e->ReleaseStringUTFChars(path, cPath);
+    if(name && cName) e->ReleaseStringUTFChars(name, cName);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
 extern "C" JNIEXPORT void JNICALL
 Java_com_rvc_droid_audio_NativeAudioBridge_nativeClearTracks(JNIEnv*, jobject, jlong) {
     if(gTM) gTM->clearAll();

@@ -78,11 +78,14 @@ public:
 
     // Import a WAV file as a new track
     bool importWav(const char* path, const std::string& name = "");
+    // Import a WAV file into an existing track (used to arm/record a specific track)
+    bool importWavAt(const char* path, int32_t index, const std::string& name = "");
 
     // Get the maximum length of the project in frames
     int64_t getTotalDuration() const;
 
 private:
+    bool importWavInternal(const char* path, const std::string& name, int32_t targetIndex);
     mutable std::mutex mMutex;
     std::vector<std::unique_ptr<Track>> mTracks;
     std::atomic<int64_t> mGlobalPosition{0};

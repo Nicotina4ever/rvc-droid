@@ -84,7 +84,7 @@ fun DAWBottomNavigation(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                DAWTab.entries.forEach { tab ->
+                listOf(DAWTab.STUDIO, DAWTab.CLOUD).forEach { tab ->
                     val selected = selectedTab == tab
                     Column(
                         Modifier

@@ -8,7 +8,7 @@ dall'app anche da lontano.
 ## Repository
 
 - Sorgenti: <https://github.com/Nicotina4ever/rvc-droid>
-- APK firmato: [RVC-Droid-2.3.apk](https://github.com/Nicotina4ever/rvc-droid/releases/download/v2.1/RVC-Droid-2.3.apk) (Releases v2.3), non versionato.
+- APK firmato: [RVC-Droid-3.0.apk](https://github.com/Nicotina4ever/rvc-droid/releases/download/v2.1/RVC-Droid-3.0.apk) (Releases v3.0), non versionato.
 - **Non versionati**: `Necessari/` (archivio modelli ONNX sperimentali ~1,3 GB), `Dataset_spot/`, build, APK e keystore. I modelli `.pth` restano sul PC: l'app non richiede modelli ONNX.
 - Istruzioni pratiche: [ISTRUZIONI.md](ISTRUZIONI.md)
 - Firma release: in locale usa `app/release.jks` + eventuale `keystore.properties` (entrambi
@@ -19,14 +19,18 @@ dall'app anche da lontano.
 
 | Area | Cosa include |
 |---|---|
-| **Studio** | registrazione con meter, backing track, video di riferimento, gobbo rapido, export |
-| **Timeline** | editor WAV, trim/silence/cut/copy/paste/undo, player, esportazione regioni |
-| **Mixer** | fino a 32 tracce, volume/pan/mute/solo/ducking, timeline zoom/pan, render mono/stereo, LUFS |
-| **Video** | player Media3/ExoPlayer sincronizzato con la timeline, riferimento per doppiaggio |
-| **Gobbo** | teleprompter full-screen con scroll automatico, specchio, libreria script locale |
+| **Studio (unico)** | trasporto, **tracce creabili e armabili**, timeline con clip, registrazione nella traccia armata, mixer strip, video di riferimento opzionale, gobbo, plugin rack |
+| **Timeline** | editor WAV, trim/silence/cut/copy/paste/undo, player, esportazione regioni (integrato nello Studio) |
+| **Mixer** | fino a 32 tracce, volume/pan/mute/solo/ducking, render mono/stereo, LUFS (integrato nello Studio) |
+| **Video** | player Media3/ExoPlayer sincronizzato con la timeline, riferimento per doppiaggio (pannello opzionale nello Studio) |
+| **Gobbo** | teleprompter full-screen con scroll automatico, specchio, libreria script locale (nello Studio) |
 | **Plugin rack** | catena master inseribile: gate → EQ voce/musica → compressore → limiter → riverbero → master, bypass per modulo, preset di fabbrica e preset utente salvabili |
 | **Cloud** | RVC remoto via Dropbox, bundle progetto `.rvcdaw.zip`, controllo remoto PC (`status.json` + `config.json`) |
 | **RVC remoto** | conversione sul PC con i `.pth` originali (PyTorch/CUDA): **nessuna conversione ONNX**, nessun modello da copiare sul telefono |
+
+> Dalla 3.0 la navigazione è ridotta a **Studio** e **Cloud**: timeline, mixer, video e gobbo sono
+> pannelli dello Studio, non più tab separate. Le tracce si creano con **+ TRACCIA** e si armano
+> col pulsante **ARMA**; la registrazione finisce nella traccia armata.
 
 ## Build
 

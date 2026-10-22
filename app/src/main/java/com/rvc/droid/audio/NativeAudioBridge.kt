@@ -358,6 +358,9 @@ object NativeAudioBridge {
      */
     fun setTrackDuck(index: Int, amount: Float) { if(isInitialized) nativeSetTrackDuck(nativeEnginePtr, index, amount) }
     fun importTrack(path: String, name: String = ""): Boolean = checkInit { nativeImportTrack(nativeEnginePtr, path, name) }
+    /** Importa il WAV nella traccia esistente (armata), senza crearne una nuova. */
+    fun importTrackAt(index: Int, path: String, name: String = ""): Boolean =
+        checkInit { nativeImportTrackAt(nativeEnginePtr, index, path, name) }
     fun resetMixerPosition() { if(isInitialized) nativeResetMixerPosition(nativeEnginePtr) }
     fun setMixerPositionMs(ms: Long) { if(isInitialized) nativeSetMixerPosition(nativeEnginePtr, ms * 48) }
     fun clearTracks() { if(isInitialized) nativeClearTracks(nativeEnginePtr) }
@@ -440,6 +443,7 @@ object NativeAudioBridge {
     private external fun nativeSetTrackOffset(ptr: Long, index: Int, offset: Long)
     private external fun nativeSetTrackDuck(ptr: Long, index: Int, amount: Float)
     private external fun nativeImportTrack(ptr: Long, path: String, name: String): Boolean
+    private external fun nativeImportTrackAt(ptr: Long, index: Int, path: String, name: String): Boolean
     private external fun nativeResetMixerPosition(ptr: Long)
     private external fun nativeSetMixerPosition(ptr: Long, frames: Long)
     private external fun nativeClearTracks(ptr: Long)
