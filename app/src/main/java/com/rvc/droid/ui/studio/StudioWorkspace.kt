@@ -119,6 +119,8 @@ fun StudioWorkspace(
     onMusicVolume: (Float) -> Unit,
     onMasterVolume: (Float) -> Unit,
     onOpenPluginRack: () -> Unit,
+    onOpenEditor: () -> Unit,
+    onOpenAdvancedMixer: () -> Unit,
     backingLoaded: Boolean,
     backingGain: Float,
     backingPosition: Float,
@@ -226,6 +228,9 @@ fun StudioWorkspace(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("TIMELINE", style = RvcTypography.labelSmall, color = RVCColors.textMute)
                         Spacer(Modifier.weight(1f))
+                        TextButton(onClick = onOpenEditor, enabled = selectedClipId != null) {
+                            Text("EDIT WAV", fontSize = 9.sp, color = if (selectedClipId != null) RVCColors.accentStrong else RVCColors.textMute)
+                        }
                         Text(formatTimecode(timelinePositionMs), color = RVCColors.accentStrong, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
                     }
                     Spacer(Modifier.height(6.dp))
@@ -273,6 +278,7 @@ fun StudioWorkspace(
             onMusicVolume = onMusicVolume,
             onMasterVolume = onMasterVolume,
             onOpenPluginRack = onOpenPluginRack,
+            onOpenAdvancedMixer = onOpenAdvancedMixer,
             onTrackVolume = onTrackVolume,
             onTrackPan = onTrackPan,
             onTrackMute = onTrackMute,
@@ -559,6 +565,7 @@ private fun MixerSection(
     onMusicVolume: (Float) -> Unit,
     onMasterVolume: (Float) -> Unit,
     onOpenPluginRack: () -> Unit,
+    onOpenAdvancedMixer: () -> Unit,
     onTrackVolume: (Int, Float) -> Unit,
     onTrackPan: (Int, Float) -> Unit,
     onTrackMute: (Int, Boolean) -> Unit,
@@ -569,6 +576,10 @@ private fun MixerSection(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("MIXER", style = RvcTypography.labelSmall, color = RVCColors.textMute)
                 Spacer(Modifier.weight(1f))
+                TextButton(onClick = onOpenAdvancedMixer) {
+                    Text("MIXER AVANZATO", fontSize = 9.sp, color = RVCColors.textMute)
+                }
+                Spacer(Modifier.width(4.dp))
                 Button(
                     onClick = onOpenPluginRack,
                     modifier = Modifier.height(27.dp),

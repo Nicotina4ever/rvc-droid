@@ -1810,6 +1810,14 @@ fun MainScreen(hasPermission: Boolean = true) {
                             onMusicVolume = { musicVol = it; bridge.setVolumes(voiceVol, it, masterVol) },
                             onMasterVolume = { masterVol = it; bridge.setVolumes(voiceVol, musicVol, it) },
                             onOpenPluginRack = { showStudioPluginRack = true },
+                            onOpenEditor = {
+                                selectedClip = selectedTimelineClipId
+                                    ?.let { id -> mixerTracks.firstOrNull { it.clipId == id } }
+                                    ?.let { track -> recordings.firstOrNull { it.path == track.clipPath } }
+                                    ?: selectedClip
+                                currentTab = DAWTab.EDITOR
+                            },
+                            onOpenAdvancedMixer = { currentTab = DAWTab.MIXER },
                             backingLoaded = backingLoaded,
                             backingGain = backingGain,
                             backingPosition = backingPosition,
