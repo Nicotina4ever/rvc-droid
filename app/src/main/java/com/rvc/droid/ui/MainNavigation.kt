@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
@@ -51,13 +52,20 @@ import com.rvc.droid.ui.theme.RvcTypography
  * registra -> monta -> mixa -> video -> gobbo -> cloud/voce.
  */
 enum class DAWTab(val title: String, val icon: ImageVector) {
-    STUDIO("Studio", Icons.Filled.Mic),
+    REGISTRA("Registra", Icons.Filled.Mic),
+    TRACCE("Tracce", Icons.Filled.GraphicEq),
+    VOCE("Voce", Icons.Filled.Tune),
+    CLOUD("Cloud", Icons.Filled.Cloud),
+    // Schermate avanzate: raggiungibili dal menu "Altro".
+    STUDIO("Studio completo", Icons.Filled.Mic),
     EDITOR("Timeline", Icons.Filled.GraphicEq),
     MIXER("Mixer", Icons.Filled.Tune),
     VIDEO("Video", Icons.Filled.Movie),
     PROMPTER("Gobbo", Icons.Filled.Article),
-    CLOUD("Cloud", Icons.Filled.Cloud),
 }
+
+/** Tab visibili nella barra inferiore: le altre restano nel menu "Altro". */
+val PRIMARY_DAW_TABS = listOf(DAWTab.REGISTRA, DAWTab.TRACCE, DAWTab.VOCE, DAWTab.CLOUD)
 
 @Composable
 fun DAWBottomNavigation(
@@ -84,7 +92,7 @@ fun DAWBottomNavigation(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                listOf(DAWTab.STUDIO, DAWTab.CLOUD).forEach { tab ->
+                PRIMARY_DAW_TABS.forEach { tab ->
                     val selected = selectedTab == tab
                     Column(
                         Modifier
@@ -131,6 +139,7 @@ fun DAWTopBar(
     statusColor: Color,
     onSave: () -> Unit,
     onSettings: () -> Unit,
+    onMore: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -213,6 +222,14 @@ fun DAWTopBar(
                         contentDescription = "Impostazioni",
                         tint = RVCColors.textDim,
                         modifier = Modifier.size(19.dp),
+                    )
+                }
+                IconButton(onClick = onMore, modifier = Modifier.size(38.dp)) {
+                    Icon(
+                        Icons.Filled.MoreVert,
+                        contentDescription = "Altro",
+                        tint = RVCColors.textDim,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }

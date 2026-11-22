@@ -40,6 +40,9 @@ import com.rvc.droid.ui.project.ProjectManager
 import com.rvc.droid.ui.project.ProjectState
 import com.rvc.droid.ui.project.RecordingClip
 import com.rvc.droid.ui.project.MixerTrackState
+import com.rvc.droid.ui.simple.RecordScreen
+import com.rvc.droid.ui.simple.TracksScreen
+import com.rvc.droid.ui.simple.VoiceScreen
 import com.rvc.droid.ui.studio.StudioWorkspace
 import com.rvc.droid.ui.plugins.PluginRackView
 import com.rvc.droid.ui.video.VideoPreviewView
@@ -129,7 +132,7 @@ fun MainScreen(hasPermission: Boolean = true) {
         prefs.edit().putBoolean(key, value).apply()
     }
 
-    var currentTab by remember { mutableStateOf(DAWTab.STUDIO) }
+    var currentTab by remember { mutableStateOf(DAWTab.REGISTRA) }
     var selectedClip by remember { mutableStateOf<RecordingClip?>(null) }
     var rvcInputClip by remember { mutableStateOf<RecordingClip?>(null) }
     var lastRvcOutputClip by remember { mutableStateOf<RecordingClip?>(null) }
@@ -138,6 +141,7 @@ fun MainScreen(hasPermission: Boolean = true) {
     var armedTrackIndex by remember { mutableStateOf<Int?>(null) }
     var showStudioVideo by remember { mutableStateOf(false) }
     var showStudioPluginRack by remember { mutableStateOf(false) }
+    var showAdvancedSheet by remember { mutableStateOf(false) }
 
     var isRunning by remember { mutableStateOf(false) }
     var recordingStartedAudio by remember { mutableStateOf(false) }
@@ -645,10 +649,14 @@ fun MainScreen(hasPermission: Boolean = true) {
     }
 
     LaunchedEffect(currentTab) {
-        if (currentTab == DAWTab.EDITOR || currentTab == DAWTab.CLOUD || currentTab == DAWTab.STUDIO) {
+        if (currentTab == DAWTab.EDITOR || currentTab == DAWTab.CLOUD ||
+            currentTab == DAWTab.STUDIO || currentTab == DAWTab.TRACCE || currentTab == DAWTab.VOCE
+        ) {
             refreshRecordings()
         }
-        if (currentTab == DAWTab.STUDIO || currentTab == DAWTab.MIXER || currentTab == DAWTab.PROMPTER) {
+        if (currentTab == DAWTab.REGISTRA || currentTab == DAWTab.STUDIO ||
+            currentTab == DAWTab.MIXER || currentTab == DAWTab.PROMPTER
+        ) {
             if (bridge.isInitialized && !isRunning && !bridge.isMonitoring()) {
                 bridge.startMonitoring()
             }
@@ -1690,6 +1698,46 @@ fun MainScreen(hasPermission: Boolean = true) {
         }
     }
 
+    if (showAdvancedSheet) {
+        ModalBottomSheet(onDismissRequest = { showAdvancedSheet = false }) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+                Text(
+                    "Strumenti avanzati",
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    color = RVCColors.textMute,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+                listOf(
+                    Triple("Studio completo", "Timeline, mixer, video e gobbo insieme", DAWTab.STUDIO),
+                    Triple("Timeline", "Editor WAV e montaggio", DAWTab.EDITOR),
+                    Triple("Mixer", "32 tracce e mastering", DAWTab.MIXER),
+                    Triple("Video", "Player grande per il doppiaggio", DAWTab.VIDEO),
+                    Triple("Gobbo", "Teleprompter a schermo intero", DAWTab.PROMPTER),
+                    Triple("Cloud", "Dropbox, progetti e controllo PC", DAWTab.CLOUD),
+                ).forEach { (label, hint, tab) ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                currentTab = tab
+                                showAdvancedSheet = false
+                            }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(tab.icon, contentDescription = null, tint = RVCColors.accentStrong)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(label, color = RVCColors.text, fontSize = 14.sp)
+                            Text(hint, color = RVCColors.textMute, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
@@ -1700,6 +1748,7 @@ fun MainScreen(hasPermission: Boolean = true) {
                 statusColor = if (lastSavedAt != null) RVCColors.success else RVCColors.textMute,
                 onSave = { saveProject() },
                 onSettings = { refreshDevices(); showSettingsDialog = true },
+                onMore = { showAdvancedSheet = true },
             )
         },
         bottomBar = {
@@ -1733,6 +1782,107 @@ fun MainScreen(hasPermission: Boolean = true) {
 
                 Box(Modifier.weight(1f)) {
                     when (currentTab) {
+                        DAWTab.REGISTRA -> RecordScreen(
+                            isRunning = isRunning,
+                            inputLevel = inputLevel,
+                            tracks = mixerTracks,
+                            armedTrackIndex = armedTrackIndex,
+                            takeCount = recordings.size,
+                            lastTakeName = recordings.maxByOrNull { it.createdAt }?.name,
+                            videoPath = videoPath,
+                            videoPlaying = videoIsPlaying,
+                            onStartStop = onToggleRecording,
+                            onArmTrack = { armedTrackIndex = it },
+                            onAddTrack = { addStudioTrack() },
+                            onLoadVideo = { videoPicker.launch(arrayOf("video/*")) },
+                            onToggleVideo = { videoIsPlaying = !videoIsPlaying },
+                            onOpenGobbo = { currentTab = DAWTab.PROMPTER },
+                            onOpenTracks = { currentTab = DAWTab.TRACCE },
+                        )
+
+                        DAWTab.TRACCE -> TracksScreen(
+                            tracks = mixerTracks,
+                            selectedClipId = selectedTimelineClipId,
+                            onSelectTrack = { track ->
+                                selectedTrackIdx = track.trackIndex
+                                selectedTimelineClipId = track.clipId
+                            },
+                            onVolume = { idx, vol ->
+                                mixerTracks = mixerTracks.map { if (it.trackIndex == idx) it.copy(volume = vol) else it }
+                                bridge.setTrackVolume(idx, vol)
+                            },
+                            onPan = { idx, pan ->
+                                mixerTracks = mixerTracks.map { if (it.trackIndex == idx) it.copy(pan = pan) else it }
+                                bridge.setTrackPan(idx, pan)
+                            },
+                            onMute = { idx, muted ->
+                                mixerTracks = mixerTracks.map { if (it.trackIndex == idx) it.copy(muted = muted) else it }
+                                bridge.setTrackMute(idx, muted)
+                            },
+                            onSolo = { idx, solo ->
+                                mixerTracks = mixerTracks.map { if (it.trackIndex == idx) it.copy(solo = solo) else it }
+                                bridge.setTrackSolo(idx, solo)
+                            },
+                            onRemove = { removeStudioTrack(it) },
+                            onConvert = { track ->
+                                val clip = recordings.firstOrNull { it.path == track.clipPath }
+                                if (clip == null) {
+                                    showStatus("Traccia senza clip: registra o importa prima", true)
+                                } else {
+                                    rvcInputClip = clip
+                                    applyRemoteRvc(
+                                        clip,
+                                        trackIndexToMute = track.trackIndex,
+                                        targetOffsetMs = track.offsetMs,
+                                    )
+                                }
+                            },
+                            onAddTrack = { addStudioTrack() },
+                            onMixdown = { showExportDialog = true },
+                            onOpenMixer = { currentTab = DAWTab.MIXER },
+                            onOpenEditor = { track ->
+                                recordings.firstOrNull { it.path == track.clipPath }?.let { clip ->
+                                    selectedClip = clip
+                                    currentTab = DAWTab.EDITOR
+                                }
+                            },
+                        )
+
+                        DAWTab.VOCE -> VoiceScreen(
+                            dropboxConnected = dropboxToken.isNotBlank(),
+                            clips = recordings,
+                            selectedClip = rvcInputClip,
+                            onSelectClip = { rvcInputClip = it },
+                            models = remoteModels,
+                            selectedModel = selectedRemoteModel,
+                            onSelectModel = { selectedRemoteModel = it },
+                            pitch = pitchShift,
+                            onPitch = { pitchShift = it },
+                            formant = formantShift,
+                            onFormant = { formantShift = it },
+                            indexRate = indexRate,
+                            onIndexRate = { indexRate = it },
+                            protection = protection,
+                            onProtection = { protection = it },
+                            noiseScale = noiseScale,
+                            onNoiseScale = { noiseScale = it },
+                            f0Method = f0Method,
+                            onF0Method = { f0Method = it },
+                            progress = remoteProgress,
+                            progressText = remoteProgressText,
+                            onConvert = {
+                                val clip = rvcInputClip ?: recordings.maxByOrNull { it.createdAt }
+                                if (clip == null) {
+                                    showStatus("Registra o seleziona una clip prima di convertire", true)
+                                } else {
+                                    rvcInputClip = clip
+                                    applyRemoteRvc(clip)
+                                }
+                            },
+                            onOpenCloud = { currentTab = DAWTab.CLOUD; cloudSection = 0 },
+                            onOpenAdvancedSettings = { currentTab = DAWTab.CLOUD; cloudSection = 2 },
+                        )
+
                         DAWTab.STUDIO -> StudioWorkspace(
                             isRunning = isRunning,
                             inputLevel = inputLevel,
