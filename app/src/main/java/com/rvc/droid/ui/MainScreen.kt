@@ -1841,6 +1841,10 @@ fun MainScreen(hasPermission: Boolean = true) {
                                 }
                             },
                             onAddTrack = { addStudioTrack() },
+                            onOpenRegions = { track ->
+                                exportSourceClip = recordings.firstOrNull { it.path == track.clipPath }
+                                showRegionExportDialog = true
+                            },
                             onMixdown = { showExportDialog = true },
                             onOpenMixer = { currentTab = DAWTab.MIXER },
                             onOpenEditor = { track ->
@@ -2386,6 +2390,11 @@ fun MainScreen(hasPermission: Boolean = true) {
                                 if (bridge.isInitialized) bridge.setMixerPositionMs(timelinePositionMs)
                             },
                             onGoToStudio = { currentTab = DAWTab.STUDIO },
+                            gobboText = teleprompterText,
+                            gobboFontSize = teleprompterFontSize,
+                            gobboSpeed = teleprompterScrollSpeed,
+                            showGobbo = showTeleprompter,
+                            onToggleGobbo = { showTeleprompter = !showTeleprompter },
                         )
 
                         DAWTab.PROMPTER -> PrompterScreen(

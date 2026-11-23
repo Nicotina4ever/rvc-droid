@@ -62,6 +62,7 @@ fun TracksScreen(
     onRemove: (Int) -> Unit,
     onConvert: (MixerTrackState) -> Unit,
     onAddTrack: () -> Unit,
+    onOpenRegions: (MixerTrackState) -> Unit,
     onMixdown: () -> Unit,
     onOpenMixer: () -> Unit,
     onOpenEditor: (MixerTrackState) -> Unit,
@@ -82,6 +83,12 @@ fun TracksScreen(
                 title = "Tracce",
                 subtitle = "${tracks.size} tracce · tocca una card per selezionarla",
                 actions = {
+                    RvcButton("REGIONI", {
+                        tracks.firstOrNull { it.clipId == selectedClipId }
+                            ?.let(onOpenRegions)
+                            ?: tracks.firstOrNull()?.let(onOpenRegions)
+                    }, icon = Icons.Filled.PlayArrow)
+                    Spacer(Modifier.width(6.dp))
                     RvcButton("+ TRACCIA", onAddTrack, icon = Icons.Filled.Add, primary = true)
                 },
             )

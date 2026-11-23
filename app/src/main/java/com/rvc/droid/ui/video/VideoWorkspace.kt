@@ -1,22 +1,32 @@
 package com.rvc.droid.ui.video
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.rvc.droid.ui.components.RvcButton
 import com.rvc.droid.ui.components.RvcCard
 import com.rvc.droid.ui.components.RvcEmptyState
@@ -24,12 +34,15 @@ import com.rvc.droid.ui.components.RvcMetricRow
 import com.rvc.droid.ui.components.RvcScreenHeader
 import com.rvc.droid.ui.components.formatTimecode
 import com.rvc.droid.ui.theme.RVCColors
+import com.rvc.droid.ui.theme.RvcRadius
 import com.rvc.droid.ui.theme.RvcSpacing
 import java.io.File
+import kotlinx.coroutines.delay
 
 /**
  * Area video: lettore di riferimento sincronizzabile con la timeline.
- * Non fa editing video distruttivo; serve per doppiaggio/spot con riferimento visivo.
+ * Include il gobbo in sovrimpressione: lo script scorre mentre il video va,
+ * cosi' si doppia guardando il riferimento senza cambiare schermata.
  */
 @Composable
 fun VideoWorkspace(
@@ -45,12 +58,24 @@ fun VideoWorkspace(
     onPositionChanged: (Long) -> Unit,
     onSeekTimelineToVideo: () -> Unit,
     onGoToStudio: () -> Unit,
+    gobboText: String = "",
+    gobboFontSize: Int = 24,
+    gobboSpeed: Float = 0.3f,
+    showGobbo: Boolean = false,
+    onToggleGobbo: () -> Unit = {},
 ) {
     Column(modifier.fillMaxSize()) {
         RvcScreenHeader(
             kicker = "Riferimento visivo",
             title = "Video",
             subtitle = "Carica il video dello spot e allinealo alla timeline: la registrazione parte insieme al video.",
+            actions = {
+                RvcButton(
+                    text = if (showGobbo) "GOBBO ON" else "GOBBO",
+                    onClick = onToggleGobbo,
+                    primary = showGobbo,
+                )
+            },
         )
 
         if (videoPath == null) {
@@ -73,8 +98,9 @@ fun VideoWorkspace(
                     Text(
                         "1. Carica il video dello spot.\n" +
                             "2. Vai nello Studio e premi REC: il video parte insieme alla registrazione.\n" +
-                            "3. In Timeline monta le riprese e in Mixer rifinisci l'audio.",
-                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                            "3. In Timeline monta le riprese e in Mixer rifinisci l'audio.\n" +
+                            "4. Con GOBBO attivo lo script scorre sopra il video mentre registri.",
+                        style = MaterialTheme.typography.bodySmall,
                         color = RVCColors.textDim,
                     )
                 }
@@ -82,19 +108,34 @@ fun VideoWorkspace(
             return
         }
 
-        VideoPreviewView(
-            videoPath = videoPath,
-            currentPositionMs = positionMs,
-            isPlaying = isPlaying,
-            onLoadVideo = onLoadVideo,
-            onPlayPause = onPlayPause,
-            onStop = onStop,
-            onSeekTo = onSeekTo,
-            onPositionChanged = onPositionChanged,
-            modifier = Modifier
+        Box(
+            Modifier
                 .fillMaxWidth()
                 .weight(1f),
-        )
+        ) {
+            VideoPreviewView(
+                videoPath = videoPath,
+                currentPositionMs = positionMs,
+                isPlaying = isPlaying,
+                onLoadVideo = onLoadVideo,
+                onPlayPause = onPlayPause,
+                onStop = onStop,
+                onSeekTo = onSeekTo,
+                onPositionChanged = onPositionChanged,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (showGobbo) {
+                GobboOverlay(
+                    text = gobboText.ifBlank { "Nessuno script: scrivilo nel tab Gobbo." },
+                    fontSize = gobboFontSize,
+                    speed = gobboSpeed,
+                    isPlaying = isPlaying,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(RvcSpacing.md),
+                )
+            }
+        }
 
         RvcCard(
             title = "Sincronizzazione timeline",
@@ -123,5 +164,43 @@ fun VideoWorkspace(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun GobboOverlay(
+    text: String,
+    fontSize: Int,
+    speed: Float,
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val scroll = rememberScrollState()
+    LaunchedEffect(isPlaying, speed) {
+        if (!isPlaying) return@LaunchedEffect
+        while (true) {
+            delay(40)
+            val step = (speed * 4f).toInt().coerceAtLeast(1)
+            if (scroll.value < scroll.maxValue) {
+                scroll.scrollTo((scroll.value + step).coerceAtMost(scroll.maxValue))
+            } else {
+                break
+            }
+        }
+    }
+    Box(
+        modifier
+            .fillMaxWidth()
+            .heightIn(max = 240.dp)
+            .background(Color.Black.copy(alpha = 0.62f), RoundedCornerShape(RvcRadius.md))
+            .padding(12.dp),
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = fontSize.sp,
+            lineHeight = (fontSize * 1.3f).sp,
+            modifier = Modifier.verticalScroll(scroll),
+        )
     }
 }
