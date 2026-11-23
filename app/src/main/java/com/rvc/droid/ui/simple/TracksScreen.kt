@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -64,15 +66,17 @@ fun TracksScreen(
     onOpenMixer: () -> Unit,
     onOpenEditor: (MixerTrackState) -> Unit,
 ) {
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(340.dp),
         modifier = modifier
             .fillMaxSize()
             .background(RVCColors.bg)
             .padding(horizontal = RvcSpacing.lg, vertical = RvcSpacing.sm),
         verticalArrangement = Arrangement.spacedBy(RvcSpacing.md),
+        horizontalArrangement = Arrangement.spacedBy(RvcSpacing.md),
         contentPadding = PaddingValues(bottom = 28.dp),
     ) {
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             RvcScreenHeader(
                 kicker = "Multitrack",
                 title = "Tracce",
@@ -84,7 +88,7 @@ fun TracksScreen(
         }
 
         if (tracks.isEmpty()) {
-            item {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 RvcCard {
                     RvcEmptyState(
                         icon = Icons.Filled.Add,
@@ -175,7 +179,7 @@ fun TracksScreen(
             }
         }
 
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             RvcCard(title = "Mix", subtitle = "Render e regolazioni avanzate", accent = RVCColors.accent2) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     RvcButton("MIXDOWN", onMixdown, icon = Icons.Filled.PlayArrow, primary = true, modifier = Modifier.weight(1f))

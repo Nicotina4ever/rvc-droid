@@ -40,7 +40,10 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:theme="@style/Theme.RVCDroid"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+            android:resizeableActivity="true"
+            android:screenOrientation="fullSensor"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

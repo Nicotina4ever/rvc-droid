@@ -776,6 +776,7 @@ fun MainScreen(hasPermission: Boolean = true) {
                         put("method", f0Method)
                         put("protect", protection.toDouble())
                         put("index_rate", indexRate.toDouble())
+                        put("formant", formantShift)
                     }
                     val cfgUpload = DropboxClient.uploadText(dropboxToken, dropboxConfigFile, cfgJson.toString(4))
                     if (cfgUpload.isFailure) {
@@ -1565,6 +1566,7 @@ fun MainScreen(hasPermission: Boolean = true) {
                 put("method", remoteF0Method())
                 put("protect", protection.toDouble())
                 put("index_rate", indexRate.toDouble())
+                put("formant", formantShift)
                 put("model_version", "v2")
                 put("output_format", "wav")
             }
@@ -1603,6 +1605,7 @@ fun MainScreen(hasPermission: Boolean = true) {
                     }
                     protection = root.optDouble("protect", protection.toDouble()).toFloat()
                     indexRate = root.optDouble("index_rate", indexRate.toDouble()).toFloat()
+                    formantShift = root.optInt("formant", formantShift)
                     val modelPath = root.optString("model_path", "")
                     if (modelPath.isNotBlank()) {
                         remoteModels.firstOrNull { it.modelPath == modelPath }?.let { selectedRemoteModel = it }
